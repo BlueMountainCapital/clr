@@ -382,7 +382,9 @@ def test_iteration_exception():
     from Python.Test import ExceptionTest
     from System import OverflowException
 
-    val = ExceptionTest.ThrowExceptionInIterator().__iter__()
+    exception = OverflowException("error")
+
+    val = ExceptionTest.ThrowExceptionInIterator(exception).__iter__()
     assert next(val) == 1
     assert next(val) == 2
     with pytest.raises(OverflowException) as cm:
@@ -390,4 +392,20 @@ def test_iteration_exception():
 
     exc = cm.value
 
-    assert isinstance(exc, OverflowException)
+    assert exc == exception
+
+def test_iteration_innerexception():
+    from Python.Test import ExceptionTest
+    from System import OverflowException
+
+    exception = System.Exception("message", OverflowException("error"))
+
+    val = ExceptionTest.ThrowExceptionInIterator(exception).__iter__()
+    assert next(val) == 1
+    assert next(val) == 2
+    with pytest.raises(OverflowException) as cm:
+        next(val)
+
+    exc = cm.value
+
+    assert exc == exception.InnerException
