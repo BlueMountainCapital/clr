@@ -84,7 +84,7 @@ namespace Python.Runtime
             {
                 return Runtime.PyUnicodeType;
             }
-#if (PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
+#if PYTHON3
             else if ((op == int16Type) ||
                      (op == int32Type) ||
                      (op == int64Type)) {
@@ -126,6 +126,12 @@ namespace Python.Runtime
 
         internal static IntPtr ToPython(Object value, Type type)
         {
+            if(value is PyObject)
+            {
+                IntPtr handle = ((PyObject)value).Handle;
+                Runtime.XIncref(handle);
+                return handle;
+            }
             IntPtr result = IntPtr.Zero;
 
             // Null always converts to None in Python.
@@ -265,6 +271,13 @@ namespace Python.Runtime
         internal static bool ToManagedValue(IntPtr value, Type obType,
             out Object result, bool setError)
         {
+            if (obType == typeof(PyObject))
+            {
+                Runtime.XIncref(value); // PyObject() assumes ownership
+                result = new PyObject(value);
+                return true;
+            }
+
             // Common case: if the Python value is a wrapped managed object
             // instance, just return the wrapped object.
             ManagedType mt = ManagedType.GetManagedObject(value);
@@ -437,7 +450,7 @@ namespace Python.Runtime
                     return true;
 
                 case TypeCode.Int32:
-#if !(PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
+#if PYTHON2
                     // Trickery to support 64-bit platforms.
                     if (IntPtr.Size == 4)
                     {
@@ -465,7 +478,7 @@ namespace Python.Runtime
                     }
                     else
                     {
-#else
+#elif PYTHON3
     // When using Python3 always use the PyLong API
                 {
 #endif
@@ -498,7 +511,7 @@ namespace Python.Runtime
                     return true;
 
                 case TypeCode.Byte:
-#if (PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
+#if PYTHON3
                 if (Runtime.PyObject_TypeCheck(value, Runtime.PyBytesType))
                 {
                     if (Runtime.PyBytes_Size(value) == 1)
@@ -509,7 +522,7 @@ namespace Python.Runtime
                     }
                     goto type_error;
                 }
-#else
+#elif PYTHON2
                     if (Runtime.PyObject_TypeCheck(value, Runtime.PyStringType))
                     {
                         if (Runtime.PyString_Size(value) == 1)
@@ -543,7 +556,7 @@ namespace Python.Runtime
                     return true;
 
                 case TypeCode.SByte:
-#if (PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
+#if PYTHON3
                 if (Runtime.PyObject_TypeCheck(value, Runtime.PyBytesType)) {
                     if (Runtime.PyBytes_Size(value) == 1) {
                         op = Runtime.PyBytes_AS_STRING(value);
@@ -552,7 +565,7 @@ namespace Python.Runtime
                     }
                     goto type_error;
                 }
-#else
+#elif PYTHON2
                     if (Runtime.PyObject_TypeCheck(value, Runtime.PyStringType))
                     {
                         if (Runtime.PyString_Size(value) == 1)
@@ -586,7 +599,7 @@ namespace Python.Runtime
                     return true;
 
                 case TypeCode.Char:
-#if (PYTHON32 || PYTHON33 || PYTHON34 || PYTHON35)
+#if PYTHON3
                 if (Runtime.PyObject_TypeCheck(value, Runtime.PyBytesType)) {
                     if (Runtime.PyBytes_Size(value) == 1) {
                         op = Runtime.PyBytes_AS_STRING(value);
@@ -595,7 +608,7 @@ namespace Python.Runtime
                     }
                     goto type_error;
                 }
-#else
+#elif PYTHON2
                     if (Runtime.PyObject_TypeCheck(value, Runtime.PyStringType))
                     {
                         if (Runtime.PyString_Size(value) == 1)
@@ -613,7 +626,7 @@ namespace Python.Runtime
                         if (Runtime.PyUnicode_GetSize(value) == 1)
                         {
                             op = Runtime.PyUnicode_AS_UNICODE(value);
-#if (!UCS4)
+#if !UCS4
     // 2011-01-02: Marshal as character array because the cast
     // result = (char)Marshal.ReadInt16(op); throws an OverflowException
     // on negative numbers with Check Overflow option set on the project

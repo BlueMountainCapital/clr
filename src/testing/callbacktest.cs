@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -26,6 +26,20 @@ namespace Python.Test
                 dynamic module = Runtime.Py.Import(moduleName);
                 return module.simpleDefaultArg();
             }
+        }
+    }
+
+    //==========================================================================
+    // Tests calling from Python into C# and back into Python using a PyObject.
+    // SelfCallbackTest should be inherited by a Python class. 
+    // Used in test_class.py / testCallback
+    //==========================================================================
+    public class SelfCallbackTest
+    {
+        public void Callback(Runtime.PyObject self)
+        {
+            using (Runtime.Py.GIL())
+                ((dynamic)self).PyCallback(self);
         }
     }
 }

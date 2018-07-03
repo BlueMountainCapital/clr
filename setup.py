@@ -1,7 +1,11 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """
 Setup script for building clr.pyd and dependencies using mono and into
 an egg or wheel.
 """
+
 from setuptools import setup, Extension
 from distutils.command.build_ext import build_ext
 from distutils.command.install_lib import install_lib
@@ -23,7 +27,7 @@ PLATFORM = "x64" if architecture()[0] == "64bit" else "x86"
 
 
 def _find_msbuild_tool(tool="msbuild.exe", use_windows_sdk=False):
-    """Return full path to one of the microsoft build tools"""
+    """Return full path to one of the Microsoft build tools"""
     path = find_executable(tool)
     if path:
         return path
@@ -82,7 +86,8 @@ def _find_msbuild_tool(tool="msbuild.exe", use_windows_sdk=False):
     finally:
         hreg.Close()
 
-    # Add Visual C++ for Python as a fallback in case one of the other Windows SDKs isn't installed
+    # Add Visual C++ for Python as a fall-back in case one
+    # of the other Windows SDKs isn't installed
     if use_windows_sdk:
         localappdata = os.environ["LOCALAPPDATA"]
         pywinsdk = localappdata + r"\Programs\Common\Microsoft\Visual C++ for Python\9.0\WinSDK\Bin"
@@ -110,14 +115,13 @@ elif DEVTOOLS == "Mono":
     _config = "%sMono" % CONFIG
 
 else:
-    raise NotImplementedError("DevTools %s not supported (use MsDev or Mono)" % DEVTOOLS)
+    raise NotImplementedError(
+        "DevTools %s not supported (use MsDev or Mono)" % DEVTOOLS)
 
 
 class PythonNET_BuildExt(build_ext):
     def build_extension(self, ext):
-        """
-        Builds the .pyd file using msbuild or xbuild.
-        """
+        """Builds the .pyd file using msbuild or xbuild"""
         if ext.name != "clr":
             return build_ext.build_extension(self, ext)
 
@@ -129,8 +133,8 @@ class PythonNET_BuildExt(build_ext):
         if not os.path.exists(dest_dir):
             os.makedirs(dest_dir)
 
-        # Up to Python 3.2 sys.maxunicode is used to determine the size of Py_UNICODE
-        # but from 3.3 onwards Py_UNICODE is a typedef of wchar_t.
+        # Up to Python 3.2 sys.maxunicode is used to determine the size of
+        # Py_UNICODE, but from 3.3 onwards Py_UNICODE is a typedef of wchar_t.
         if sys.version_info[:2] <= (3, 2):
             unicode_width = 2 if sys.maxunicode < 0x10FFFF else 4
         else:
@@ -138,7 +142,8 @@ class PythonNET_BuildExt(build_ext):
             unicode_width = ctypes.sizeof(ctypes.c_wchar)
 
         defines = [
-            "PYTHON%d%s" % (sys.version_info[:2]),
+            "PYTHON%d%d" % (sys.version_info[:2]),
+            "PYTHON%d" % (sys.version_info[:1]),  # Python Major Version
             "UCS%d" % unicode_width,
         ]
 
@@ -153,7 +158,13 @@ class PythonNET_BuildExt(build_ext):
 
             # Check if --enable-shared was set when Python was built
             enable_shared = get_config_var("Py_ENABLE_SHARED")
-            if enable_shared == 0:
+            if enable_shared:
+                # Double-check if libpython is linked dynamically with python
+                lddout = _check_output(["ldd", sys.executable])
+                if 'libpython' not in lddout:
+                    enable_shared = False
+
+            if not enable_shared:
                 defines.append("PYTHON_WITHOUT_ENABLE_SHARED")
 
         if hasattr(sys, "abiflags"):
@@ -197,7 +208,8 @@ class PythonNET_BuildExt(build_ext):
         if DEVTOOLS == "MsDev" and sys.version_info[:2] > (2, 5):
             mt = _find_msbuild_tool("mt.exe", use_windows_sdk=True)
             manifest = os.path.abspath(os.path.join(build_dir, "app.manifest"))
-            cmd = [mt, '-inputresource:"%s"' % sys.executable, '-out:"%s"' % manifest]
+            cmd = [mt, '-inputresource:"%s"' % sys.executable,
+                   '-out:"%s"' % manifest]
             self.announce("Extracting manifest from %s" % sys.executable)
             check_call(" ".join(cmd), shell=False)
             return manifest
@@ -275,8 +287,7 @@ class PythonNET_InstallData(install_data):
 
 def _check_output(*popenargs, **kwargs):
     """subprocess.check_output from python 2.7.
-    Added here to support building for earlier versions
-    of Python.
+    Added here to support building for earlier versions of Python.
     """
     process = Popen(stdout=PIPE, *popenargs, **kwargs)
     output, unused_err = process.communicate()
@@ -297,7 +308,7 @@ def _get_interop_filename():
     as most windows users won't have Clang installed, which is
     required to generate the file.
     """
-    interop_file = "interop%d%s%s.cs" % (sys.version_info[0], sys.version_info[1], getattr(sys, "abiflags", ""))
+    interop_file = "interop%d%d%s.cs" % (sys.version_info[0], sys.version_info[1], getattr(sys, "abiflags", ""))
     return os.path.join("src", "runtime", interop_file)
 
 
@@ -316,7 +327,7 @@ if __name__ == "__main__":
                 sources.append(os.path.join(root, filename))
 
     for root, dirnames, filenames in os.walk("tools"):
-        for ext in (".exe", ".py"):
+        for ext in (".exe", ".py", ".c", ".h"):
             for filename in fnmatch.filter(filenames, "*" + ext):
                 sources.append(os.path.join(root, filename))
 
@@ -327,20 +338,23 @@ if __name__ == "__main__":
 
     setup(
         name="pythonnet",
-        version="2.2.0",
+        version="2.2.2",
         description=".Net and Mono integration for Python",
-        url='http://pythonnet.github.io/',
-        author="Python for .Net developers",
+        url='https://pythonnet.github.io/',
+        license='MIT',
+        author="The Python for .Net developers",
         classifiers=[
+            'Development Status :: 5 - Production/Stable',
+            'Intended Audience :: Developers',
+            'License :: OSI Approved :: MIT License',
+            'Programming Language :: C#',
+            'Programming Language :: Python :: 2',
             'Programming Language :: Python :: 2.7',
-            'Programming Language :: Python :: 3.2',
+            'Programming Language :: Python :: 3',
             'Programming Language :: Python :: 3.3',
             'Programming Language :: Python :: 3.4',
             'Programming Language :: Python :: 3.5',
-            'Programming Language :: C#',
-            'License :: OSI Approved :: Zope Public License',
-            'Development Status :: 5 - Production/Stable',
-            'Intended Audience :: Developers',
+            'Programming Language :: Python :: 3.6',
             'Operating System :: Microsoft :: Windows',
             'Operating System :: POSIX :: Linux',
             'Operating System :: MacOS :: MacOS X',
